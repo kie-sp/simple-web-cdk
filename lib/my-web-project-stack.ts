@@ -17,7 +17,7 @@ export class MyWebProjectStack extends Stack {
     super(scope, id, props);
 
     const repo = new codecommit.Repository(this, "codecommitStack01", {
-      repositoryName: "my-web",
+      repositoryName: "my-web-repo-test",
       description: "this is my first web",
       //In case you have your reactjs file within this project
       // code: codecommit.Code.fromZipFile(path.join(__dirname, "/source/Archive.zip"), "main")
@@ -39,7 +39,7 @@ export class MyWebProjectStack extends Stack {
     repo.applyRemovalPolicy(RemovalPolicy.RETAIN)
 
     let bucket = new s3.Bucket(this, "s3Stack01", {
-      bucketName: "my-web",
+      bucketName: "my-web-test-1",
     })
     bucket.applyRemovalPolicy(RemovalPolicy.RETAIN)
 
@@ -140,7 +140,7 @@ export class MyWebProjectStack extends Stack {
           project: project,
           environmentVariables: {
             S3BUCKET: {
-              value: `s3://my-web`
+              value: `s3://my-web-test-1`
             }
           }
         })],
