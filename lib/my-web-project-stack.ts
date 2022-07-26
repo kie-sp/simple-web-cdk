@@ -9,15 +9,14 @@ import { LinuxBuildImage } from 'aws-cdk-lib/aws-codebuild';
 import * as codepipeline from 'aws-cdk-lib/aws-codepipeline'
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins'
-import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment'
 import * as yaml from 'yaml';
 import * as fs from 'fs'
 export class MyWebProjectStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    const repo = new codecommit.Repository(this, "codecommitStack01", {
-      repositoryName: "my-web-repo-test",
+    const repo = new codecommit.Repository(this, "codecommitStack001", {
+      repositoryName: "my-web-repo",
       description: "this is my first web",
       //In case you have your reactjs file within this project
       // code: codecommit.Code.fromZipFile(path.join(__dirname, "/source/Archive.zip"), "main")
@@ -38,23 +37,34 @@ export class MyWebProjectStack extends Stack {
     }]);
     repo.applyRemovalPolicy(RemovalPolicy.RETAIN)
 
-    let bucket = new s3.Bucket(this, "s3Stack01", {
-      bucketName: "my-web-test-1",
+    //create s3 bucket for hosting website
+    let bucket = new s3.Bucket(this, "s3Stack001", {
+      bucketName: "my-web-bucket",
     })
+    const cfnBucket = bucket.node.defaultChild as s3.CfnBucket;
+    cfnBucket.addPropertyOverride('Tags', [{
+      "Key" : "project",
+      "Value" : "my-web"
+    }]);
     bucket.applyRemovalPolicy(RemovalPolicy.RETAIN)
 
-    let myWebCache = new cloudfront.CachePolicy(this,'createCachePolicy',{
+    //create cache policy for cloudfront
+    let myWebCache = new cloudfront.CachePolicy(this,'cachePolicyStack001',{
       cachePolicyName: 'myWebPolicy',
       comment: 'My policy',
       defaultTtl: Duration.days(2),
       minTtl: Duration.minutes(1),
       maxTtl: Duration.days(10),
     })
-    const originAccessIdentity = new cloudfront.OriginAccessIdentity(this, 'MyOriginAccessIdentity', /* all optional props */ {
-      comment: 'this is a test',
+
+    //create origin access policy to allow only this distribution
+    const originAccessIdentity = new cloudfront.OriginAccessIdentity(this, 'oaiStack001', {
+      comment: 'allow only s3 bucket',
       
     });
-    let distribution = new cloudfront.Distribution(this,'createDistribution', {
+
+    //create cloudfront distribution
+    let distribution = new cloudfront.Distribution(this,'distributionStack001', {
       defaultBehavior: { 
         origin: new origins.S3Origin(bucket,{
           originAccessIdentity : originAccessIdentity,
@@ -65,12 +75,13 @@ export class MyWebProjectStack extends Stack {
         cachePolicy: myWebCache,
         },
         defaultRootObject: 'index.html',
-    }
+      }
     )
     distribution.applyRemovalPolicy(RemovalPolicy.RETAIN)
 
+    //create role for codebuild
     let roleName = "codebuildRole"
-    const codebuildRole = new iam.Role(this, 'createRoleStack01', {
+    const codebuildRole = new iam.Role(this, 'createRoleStack001', {
       roleName: roleName,
       assumedBy: new iam.ServicePrincipal('codebuild.amazonaws.com'),
       description: 'role for building cool stuffs',
@@ -104,8 +115,9 @@ export class MyWebProjectStack extends Stack {
     const stringified: string = fs.readFileSync(path.join(__dirname, "/buildspec.yaml"), { encoding: 'utf-8', });
     const parsed: any = yaml.parse(stringified);
 
-    let projectName = "web-build"
-    let project = new codebuild.Project(this, "createCodeBuildStack01",{
+    //create codebuild
+    let projectName = "my-web-build"
+    let project = new codebuild.Project(this, "codeBuildStack001",{
       projectName: projectName,
       buildSpec: codebuild.BuildSpec.fromObjectToYaml(parsed),
       role: importedRole,
@@ -119,10 +131,18 @@ export class MyWebProjectStack extends Stack {
       })
     })
 
+    const cfnBuildProject = project.node.defaultChild as codebuild.CfnProject;
+    cfnBuildProject.addPropertyOverride('Tags', 
+      [{
+        "Key" : "project",
+        "Value" : "my-web"
+      }]
+    );
     project.applyRemovalPolicy(RemovalPolicy.RETAIN)
 
+    //create codepiprlines
     const repoOutput = new codepipeline.Artifact();
-    const pipeline = new codepipeline.Pipeline(this, "createPipelines01",{
+    const pipeline = new codepipeline.Pipeline(this, "pipelineStack01",{
       pipelineName: "my-web-pipelines",
       stages: [{
         stageName: "Commit",
